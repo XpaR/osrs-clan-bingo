@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { completionMessage } from "./messages";
+import { forgetProofFiles } from "./proofs";
 import { SEED_COMPLETIONS, SEED_EVENT, SEED_TEAMS, SEED_TILES, eventWindow } from "./seed-data";
 
 const globalForDb = globalThis as unknown as { __bingoDb?: Database.Database };
@@ -19,11 +20,11 @@ export function getDb() {
     db.pragma("journal_mode = WAL");
     db.pragma("foreign_keys = ON");
     db.pragma("busy_timeout = 4000");
-    migrate(db);
-    const row = db.prepare("SELECT COUNT(*) AS count FROM event").get() as { count: number };
-    if (row.count === 0) seedDatabase(db);
     globalForDb.__bingoDb = db;
   }
+  migrate(globalForDb.__bingoDb);
+  const row = globalForDb.__bingoDb.prepare("SELECT COUNT(*) AS count FROM event").get() as { count: number };
+  if (row.count === 0) seedDatabase(globalForDb.__bingoDb);
   return globalForDb.__bingoDb;
 }
 
@@ -92,6 +93,17 @@ function migrate(db: Database.Database) {
     );
 
     CREATE INDEX IF NOT EXISTS activity_created ON activity (created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS proof_images (
+      id TEXT PRIMARY KEY,
+      completion_id TEXT NOT NULL REFERENCES completions(id) ON DELETE CASCADE,
+      filename TEXT NOT NULL,
+      mime TEXT NOT NULL,
+      bytes INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS proof_images_completion ON proof_images (completion_id);
   `);
 }
 
@@ -173,7 +185,8 @@ export function seedDatabase(db: Database.Database, now = new Date()) {
 
 export function clearAndSeed(db: Database.Database, now = new Date()) {
   const apply = db.transaction(() => {
-    db.exec("DELETE FROM activity; DELETE FROM completions; DELETE FROM tiles; DELETE FROM teams; DELETE FROM event;");
+    forgetProofFiles(db);
+    db.exec("DELETE FROM proof_images; DELETE FROM activity; DELETE FROM completions; DELETE FROM tiles; DELETE FROM teams; DELETE FROM event;");
     writeSeed(db, now);
     db.prepare(
       `INSERT INTO activity (id, action, message, tile_id, team_id, actor, created_at)

@@ -1,6 +1,6 @@
 # OSRS Clan Bingo
 
-A shared board for an Old School RuneScape clan bingo. Visitors see the 5 by 5 board, which team has put an X on each tile, the live standings, and a feed of recent completions. An admin marks tiles, attaches a proof link and a note, and edits teams, tiles, and the event window.
+A shared board for an Old School RuneScape clan bingo. Visitors see the 5 by 5 board, which team has put an X on each tile, the live standings, and a feed of recent completions. An admin marks tiles, uploads proof screenshots, and edits teams, tiles, and the event window.
 
 The board is stored in a SQLite file on the server, so every visitor sees the same event. The public page polls every few seconds.
 
@@ -17,6 +17,7 @@ npm run dev
 Open [http://127.0.0.1:4317](http://127.0.0.1:4317).
 
 - Board: [http://127.0.0.1:4317](http://127.0.0.1:4317)
+- Gallery: [http://127.0.0.1:4317/gallery](http://127.0.0.1:4317/gallery)
 - Rules: [http://127.0.0.1:4317/rules](http://127.0.0.1:4317/rules)
 - Admin: [http://127.0.0.1:4317/admin](http://127.0.0.1:4317/admin)
 
@@ -50,9 +51,13 @@ An admin can change those bonuses on the Event tab. Ties break by tile points, t
 
 `npm test` covers the line math, the blackout, the tie-break, the seeded card, and a SQLite round-trip that marks, unmarks, and resets.
 
-## Proof
+## Proof screenshots
 
-Admins paste a link. Image links (png, jpg, gif, webp, or a common image host) render on the tile. Anything else is shown as a link. The rules page tells players to screenshot the drop with clan chat and the event word visible.
+Admins upload PNG, JPG, WEBP, or GIF files from the mark dialog. Drag a file onto the drop zone, use the file picker, or paste an image from the clipboard. Each file can be up to 10MB, and one team mark can hold eight shots. The admin can remove a shot without clearing the X.
+
+Files are stored on disk in a `proofs` folder beside the SQLite file. If `DATABASE_PATH` is `/data/bingo.sqlite`, the images live in `/data/proofs`. That folder has to sit on the same persistent disk as the database. A volume mounted at `/data` covers both. Deleting the database without the folder, or the other way around, leaves broken pictures or orphaned files.
+
+The public board shows the shots when a visitor opens a tile, with a zoom view. The gallery page lists every uploaded shot and can be filtered by team and by tile.
 
 ## Deploy
 
@@ -64,7 +69,7 @@ The process has to be able to write `DATABASE_PATH`. Serverless hosts that wipe 
 docker compose up --build -d
 ```
 
-Edit `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` in `docker-compose.yml` first. The board is stored in the `bingo-data` volume and the app listens on port 4317.
+Edit `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` in `docker-compose.yml` first. The board and the `proofs` image folder are stored in the `bingo-data` volume. The app listens on port 4317.
 
 ### A small VM
 
@@ -82,7 +87,7 @@ Put a reverse proxy in front of port 4317. If the proxy sets `X-Forwarded-Proto:
 ### Railway, Fly.io, or a similar host
 
 1. Deploy this repo with the Dockerfile, or with `npm run build` and `npm start`.
-2. Attach a volume and set `DATABASE_PATH` to a file on that volume, for example `/data/bingo.sqlite`.
+2. Attach a volume and set `DATABASE_PATH` to a file on that volume, for example `/data/bingo.sqlite`. Screenshots are written to `/data/proofs` next to that file, so the volume must include the whole directory, not only the database file.
 3. Set `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET`.
 4. Expose port 4317.
 

@@ -8,7 +8,7 @@ const RULES: { title: string; body: string }[] = [
   },
   {
     title: "The screenshot",
-    body: "One team member posts one proof for the tile. The shot has to show the drop, kill count, or experience, the player name, and clan chat with the event word visible. A RuneLite screenshot with the clock is ideal. The admin pastes the image link onto the tile. If the shot is missing the chat word, it can be refused.",
+    body: "One team member posts proof for the tile. The shot has to show the drop, kill count, or experience, the player name, and clan chat with the event word visible. A RuneLite screenshot with the clock is ideal. The admin uploads that image onto the tile. Several shots are fine if one crop cannot show the chat and the drop together. If the shot is missing the chat word, it can be refused.",
   },
   {
     title: "One proof, the whole team",

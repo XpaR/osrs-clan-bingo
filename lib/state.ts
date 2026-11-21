@@ -9,6 +9,7 @@ import type {
   PublicState,
   PublicTeam,
   PublicTile,
+  ProofImageRef,
 } from "./types";
 
 interface EventRow {
@@ -79,6 +80,11 @@ function membersOf(raw: string): string[] {
   }
 }
 
+interface ProofRow {
+  id: string;
+  completion_id: string;
+}
+
 export function getPublicState(): PublicState {
   const db = getDb();
   const eventRow = db.prepare("SELECT * FROM event WHERE id = 1").get() as EventRow;
@@ -88,6 +94,13 @@ export function getPublicState(): PublicState {
   const activityRows = db
     .prepare("SELECT * FROM activity ORDER BY created_at DESC, rowid DESC LIMIT 80")
     .all() as ActivityRow[];
+  const proofRows = db.prepare("SELECT id, completion_id FROM proof_images ORDER BY created_at, rowid").all() as ProofRow[];
+  const imagesByCompletion = new Map<string, ProofImageRef[]>();
+  for (const proof of proofRows) {
+    const list = imagesByCompletion.get(proof.completion_id) ?? [];
+    list.push({ id: proof.id, url: `/api/proofs/${proof.id}` });
+    imagesByCompletion.set(proof.completion_id, list);
+  }
 
   const event: PublicEvent = {
     name: eventRow.name,
@@ -125,10 +138,10 @@ export function getPublicState(): PublicState {
     id: completion.id,
     tileId: completion.tile_id,
     teamId: completion.team_id,
-    proofUrl: completion.proof_url,
     note: completion.note,
     completedAt: completion.completed_at,
     actor: completion.actor,
+    images: imagesByCompletion.get(completion.id) ?? [],
   }));
   const activity: PublicActivity[] = activityRows.map((entry) => ({
     id: entry.id,

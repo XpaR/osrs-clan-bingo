@@ -358,6 +358,14 @@ select {
   }
 }
 
+dialog.lightbox {
+  color-scheme: dark;
+}
+
+dialog.lightbox::backdrop {
+  background: rgba(0, 0, 0, 0.82);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .live-dot {
     animation: none;

@@ -44,7 +44,6 @@ test("seeded sqlite board matches the scorer and survives mark, unmark, and rese
       teamId: "team-zulrah",
       tileId: "tile-07",
       note: "Shard back on the board.",
-      proofUrl: "https://example.com/shard.png",
     });
     const restored = getPublicState();
     const zulrahAgain = restored.leaderboard.find((row) => row.teamId === "team-zulrah");
@@ -52,13 +51,29 @@ test("seeded sqlite board matches the scorer and survives mark, unmark, and rese
     const proof = restored.completions.find(
       (completion) => completion.teamId === "team-zulrah" && completion.tileId === "tile-07",
     );
-    assert.equal(proof?.proofUrl, "https://example.com/shard.png");
-    assert.equal(proof?.note, "Shard back on the board.");
+    assert.ok(proof);
+    assert.equal(proof.note, "Shard back on the board.");
+    assert.deepEqual(proof.images, []);
 
-    assert.throws(
-      () => markTile(db, { teamId: "team-jad", tileId: "tile-06", proofUrl: "javascript:alert(1)" }),
-      /http/,
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64",
     );
+    const { addProofImages, deleteProofImage, readProofFile } = await import("./proofs");
+    addProofImages(db, { completionId: proof.id, files: [png, png] });
+    const withShots = getPublicState().completions.find((completion) => completion.id === proof.id);
+    assert.equal(withShots?.images.length, 2);
+    const stored = readProofFile(db, withShots!.images[0].id);
+    assert.equal(stored?.mime, "image/png");
+    deleteProofImage(db, withShots!.images[0].id);
+    const afterDelete = getPublicState().completions.find((completion) => completion.id === proof.id);
+    assert.equal(afterDelete?.images.length, 1);
+    assert.throws(() => addProofImages(db, { completionId: proof.id, files: [Buffer.from("not an image")] }), /PNG/);
+    assert.throws(
+      () => addProofImages(db, { completionId: proof.id, files: [Buffer.alloc(10 * 1024 * 1024 + 1)] }),
+      /10MB/,
+    );
+
     assert.throws(() => markTile(db, { teamId: "team-jad", tileId: "tile-12" }), /free/i);
 
     resetProgress(db);
@@ -71,6 +86,7 @@ test("seeded sqlite board matches the scorer and survives mark, unmark, and rese
     assert.equal(cleared.teams.length, 4);
     assert.equal(cleared.tiles.length, 25);
     assert.equal(cleared.activity[0].message.includes("cleared"), true);
+    assert.equal(getPublicState().completions.every((completion) => completion.images.length === 0), true);
   } finally {
     closeDb();
     rmSync(dir, { recursive: true, force: true });

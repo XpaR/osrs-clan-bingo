@@ -37,14 +37,19 @@ export interface PublicTile {
   isFree: boolean;
 }
 
+export interface ProofImageRef {
+  id: string;
+  url: string;
+}
+
 export interface PublicCompletion {
   id: string;
   tileId: string;
   teamId: string;
-  proofUrl: string;
   note: string;
   completedAt: string;
   actor: string;
+  images: ProofImageRef[];
 }
 
 export interface PublicActivity {

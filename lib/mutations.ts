@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
 import { clearAndSeed } from "./db";
 import { completionMessage, removalMessage } from "./messages";
+import { proofFilesForCompletions, unlinkProofFiles } from "./proofs";
 import {
   cleanBonus,
   cleanColor,
@@ -12,7 +13,6 @@ import {
   cleanName,
   cleanNote,
   cleanPoints,
-  cleanProof,
   cleanText,
 } from "./validators";
 
@@ -62,29 +62,25 @@ function tileById(db: Database.Database, id: string) {
   return db.prepare("SELECT * FROM tiles WHERE id = ?").get(id) as TileRow | undefined;
 }
 
-export function markTile(
-  db: Database.Database,
-  input: { teamId?: unknown; tileId?: unknown; proofUrl?: unknown; note?: unknown },
-) {
+export function markTile(db: Database.Database, input: { teamId?: unknown; tileId?: unknown; note?: unknown }) {
   const team = teamById(db, String(input.teamId ?? ""));
   if (!team) throw new Error("That team does not exist.");
   const tile = tileById(db, String(input.tileId ?? ""));
   if (!tile) throw new Error("That tile does not exist.");
   if (tile.is_free) throw new Error("The free space is already filled for every team.");
-  const proofUrl = cleanProof(input.proofUrl);
   const note = cleanNote(input.note);
   const apply = db.transaction(() => {
     const existing = db
       .prepare("SELECT id FROM completions WHERE tile_id = ? AND team_id = ?")
       .get(tile.id, team.id) as { id: string } | undefined;
     if (existing) {
-      db.prepare("UPDATE completions SET proof_url = ?, note = ? WHERE id = ?").run(proofUrl, note, existing.id);
-      log(db, "update", `Admin updated the proof for ${team.name} on ${tile.name}.`, tile.id, team.id);
+      db.prepare("UPDATE completions SET note = ? WHERE id = ?").run(note, existing.id);
+      log(db, "update", `Admin updated the note for ${team.name} on ${tile.name}.`, tile.id, team.id);
     } else {
       db.prepare(
         `INSERT INTO completions (id, tile_id, team_id, proof_url, note, completed_at, actor)
-         VALUES (?, ?, ?, ?, ?, ?, 'Admin')`,
-      ).run(randomUUID(), tile.id, team.id, proofUrl, note, new Date().toISOString());
+         VALUES (?, ?, ?, '', ?, ?, 'Admin')`,
+      ).run(randomUUID(), tile.id, team.id, note, new Date().toISOString());
       log(db, "complete", completionMessage(team.name, tile.name, tile.points), tile.id, team.id);
     }
     bump(db);
@@ -97,13 +93,19 @@ export function unmarkTile(db: Database.Database, input: { teamId?: unknown; til
   if (!team) throw new Error("That team does not exist.");
   const tile = tileById(db, String(input.tileId ?? ""));
   if (!tile) throw new Error("That tile does not exist.");
+  const existing = db
+    .prepare("SELECT id FROM completions WHERE tile_id = ? AND team_id = ?")
+    .get(tile.id, team.id) as { id: string } | undefined;
+  if (!existing) throw new Error("That tile is not marked for this team.");
+  const files = proofFilesForCompletions(db, [existing.id]);
   const apply = db.transaction(() => {
-    const result = db.prepare("DELETE FROM completions WHERE tile_id = ? AND team_id = ?").run(tile.id, team.id);
+    const result = db.prepare("DELETE FROM completions WHERE id = ?").run(existing.id);
     if (result.changes === 0) throw new Error("That tile is not marked for this team.");
     log(db, "uncomplete", removalMessage(team.name, tile.name), tile.id, team.id);
     bump(db);
   });
   apply();
+  unlinkProofFiles(files);
 }
 
 export function createTeam(db: Database.Database, input: { name?: unknown; color?: unknown; members?: unknown }) {
@@ -167,12 +169,17 @@ export function deleteTeam(db: Database.Database, id: string) {
   if (!team) throw new Error("That team does not exist.");
   const count = db.prepare("SELECT COUNT(*) AS count FROM teams").get() as { count: number };
   if (count.count <= 1) throw new Error("Keep at least one team on the board.");
+  const completionIds = (db.prepare("SELECT id FROM completions WHERE team_id = ?").all(id) as { id: string }[]).map(
+    (row) => row.id,
+  );
+  const files = proofFilesForCompletions(db, completionIds);
   const apply = db.transaction(() => {
     db.prepare("DELETE FROM teams WHERE id = ?").run(id);
     log(db, "team", `Admin removed ${team.name} and their marks.`, null, null);
     bump(db);
   });
   apply();
+  unlinkProofFiles(files);
 }
 
 export function updateTile(
@@ -200,6 +207,12 @@ export function updateTile(
   if (!isFree && difficulty === "free") {
     throw new Error("Turn on the free-space switch to make a tile free.");
   }
+  const files = isFree
+    ? proofFilesForCompletions(
+        db,
+        (db.prepare("SELECT id FROM completions WHERE tile_id = ?").all(id) as { id: string }[]).map((row) => row.id),
+      )
+    : [];
   const apply = db.transaction(() => {
     db.prepare(
       `UPDATE tiles
@@ -213,6 +226,7 @@ export function updateTile(
     bump(db);
   });
   apply();
+  unlinkProofFiles(files);
 }
 
 export function updateEvent(
@@ -253,6 +267,7 @@ export function updateEvent(
 }
 
 export function resetProgress(db: Database.Database) {
+  const files = (db.prepare("SELECT filename FROM proof_images").all() as { filename: string }[]).map((row) => row.filename);
   const apply = db.transaction(() => {
     db.prepare("DELETE FROM completions").run();
     db.prepare("DELETE FROM activity").run();
@@ -260,6 +275,7 @@ export function resetProgress(db: Database.Database) {
     bump(db);
   });
   apply();
+  unlinkProofFiles(files);
 }
 
 export function resetToSeed(db: Database.Database) {

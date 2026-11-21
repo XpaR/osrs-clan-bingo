@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { BingoTile } from "@/components/bingo-tile";
-import { ProofImage } from "@/components/proof-image";
+import { Lightbox, type LightboxImage } from "@/components/lightbox";
 import { SiteFrame } from "@/components/site-frame";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -227,6 +227,7 @@ export function PublicBoard({ initial }: { initial: PublicState }) {
 }
 
 function TileDetail({ state, tile }: { state: PublicState; tile: PublicTile }) {
+  const [lightbox, setLightbox] = useState<{ images: LightboxImage[]; index: number } | null>(null);
   const teamsById = new Map(state.teams.map((team) => [team.id, team]));
   const hits = state.completions
     .filter((completion) => completion.tileId === tile.id)
@@ -270,15 +271,51 @@ function TileDetail({ state, tile }: { state: PublicState; tile: PublicTile }) {
               {completion.actor} · {formatUtc(completion.completedAt)}
             </p>
             {completion.note ? <p className="mt-2 text-sm">{completion.note}</p> : null}
-            <div className="mt-2">
-              <ProofImage url={completion.proofUrl} alt={`Proof for ${tile.name} from ${team.name}`} />
-            </div>
+            {completion.images.length > 0 ? (
+              <ul className="mt-2 grid grid-cols-3 gap-2">
+                {completion.images.map((image, index) => (
+                  <li key={image.id}>
+                    <button
+                      type="button"
+                      className="block w-full"
+                      onClick={() =>
+                        setLightbox({
+                          index,
+                          images: completion.images.map((shot, shotIndex) => ({
+                            src: shot.url,
+                            alt: `${tile.name} screenshot ${shotIndex + 1} from ${team.name}`,
+                            caption: `${team.name} · ${tile.name}`,
+                          })),
+                        })
+                      }
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={image.url}
+                        alt=""
+                        className="aspect-square w-full rounded-sm border border-[#6b542c] object-cover"
+                      />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-sm text-[#6b5436]">No screenshot uploaded yet.</p>
+            )}
           </article>
         ))}
         {openTeams.length > 0 && !tile.isFree ? (
           <p className="text-sm text-[#5c4630]">Still open for {openTeams.map((team) => team.name).join(", ")}.</p>
         ) : null}
       </div>
+      {lightbox ? (
+        <Lightbox
+          images={lightbox.images}
+          index={lightbox.index}
+          onIndex={(index) => setLightbox({ ...lightbox, index })}
+          onClose={() => setLightbox(null)}
+        />
+      ) : null}
     </>
   );
 }

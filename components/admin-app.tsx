@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { BingoTile } from "@/components/bingo-tile";
+import { ProofUploader } from "@/components/proof-uploader";
 import { SiteFrame } from "@/components/site-frame";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -235,7 +236,18 @@ export function AdminApp() {
           <TabsTrigger value="log">Log</TabsTrigger>
         </TabsList>
         <TabsContent value="mark">
-          <MarkPanel state={state} send={send} busy={busy} error={error} />
+          <MarkPanel
+            state={state}
+            send={send}
+            busy={busy}
+            error={error}
+            replaceState={(next, message) => {
+              setState(next);
+              setNow(next.serverTime);
+              setNotice(message);
+              setError(null);
+            }}
+          />
         </TabsContent>
         <TabsContent value="teams">
           <TeamsPanel state={state} send={send} busy={busy} />
@@ -254,11 +266,22 @@ export function AdminApp() {
   );
 }
 
-function MarkPanel({ state, send, busy, error }: { state: PublicState; send: Send; busy: boolean; error: string | null }) {
+function MarkPanel({
+  state,
+  send,
+  busy,
+  error,
+  replaceState,
+}: {
+  state: PublicState;
+  send: Send;
+  busy: boolean;
+  error: string | null;
+  replaceState: (state: PublicState, message: string) => void;
+}) {
   const [teamId, setTeamId] = useState(state.teams[0]?.id ?? "");
   const selected = state.teams.find((team) => team.id === teamId) ?? state.teams[0];
   const [openId, setOpenId] = useState<string | null>(null);
-  const [proof, setProof] = useState("");
   const [note, setNote] = useState("");
   const tile = state.tiles.find((item) => item.id === openId) ?? null;
   const completion =
@@ -271,7 +294,6 @@ function MarkPanel({ state, send, busy, error }: { state: PublicState; send: Sen
   function openTile(next: PublicTile) {
     if (!selected) return;
     const existing = state.completions.find((item) => item.tileId === next.id && item.teamId === selected.id);
-    setProof(existing?.proofUrl ?? "");
     setNote(existing?.note ?? "");
     setOpenId(next.id);
   }
@@ -283,17 +305,17 @@ function MarkPanel({ state, send, busy, error }: { state: PublicState; send: Sen
       : await send(
           "/api/admin/completions",
           "POST",
-          { teamId: selected.id, tileId: tile.id, proofUrl: proof, note },
-          completion ? "Proof updated." : "Tile marked.",
+          { teamId: selected.id, tileId: tile.id, note },
+          completion ? "Note saved." : "Tile marked.",
         );
-    if (saved) setOpenId(null);
+    if (saved && remove) setOpenId(null);
   }
 
   if (!selected) return <p className="parchment-panel p-4">Add a team before marking tiles.</p>;
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-[#e7d7b4]">Pick a team, then a tile. A screenshot link and a note are optional.</p>
+      <p className="text-sm text-[#e7d7b4]">Pick a team, then a tile. Add a note and upload the screenshots.</p>
       <div className="flex flex-wrap gap-2">
         {state.teams.map((team) => {
           const active = team.id === selected.id;
@@ -354,16 +376,6 @@ function MarkPanel({ state, send, busy, error }: { state: PublicState; send: Sen
                   }}
                 >
                   <div className="space-y-1">
-                    <Label htmlFor="proof">Proof URL</Label>
-                    <Input
-                      id="proof"
-                      value={proof}
-                      onChange={(event) => setProof(event.target.value)}
-                      placeholder="https://i.imgur.com/your-shot.png"
-                      inputMode="url"
-                    />
-                  </div>
-                  <div className="space-y-1">
                     <Label htmlFor="note">Note</Label>
                     <Textarea
                       id="note"
@@ -373,10 +385,19 @@ function MarkPanel({ state, send, busy, error }: { state: PublicState; send: Sen
                       placeholder="Who got it, and what the screenshot shows."
                     />
                   </div>
+                  <ProofUploader
+                    teamId={selected.id}
+                    tileId={tile.id}
+                    tileName={tile.name}
+                    note={note}
+                    marked={Boolean(completion)}
+                    images={completion?.images ?? []}
+                    onBoard={replaceState}
+                  />
                   {error ? <p className="text-sm font-semibold text-[#9d2c2c]">{error}</p> : null}
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <Button type="submit" disabled={busy}>
-                      {completion ? "Update proof" : "Mark complete"}
+                      {completion ? "Save note" : "Mark complete"}
                     </Button>
                     {completion ? (
                       <Button type="button" variant="destructive" disabled={busy} onClick={() => void save(true)}>
