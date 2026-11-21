@@ -10,7 +10,7 @@ process.env.DATABASE_PATH = path.join(dir, "bingo.sqlite");
 test("seeded sqlite board matches the scorer and survives mark, unmark, and reset", async () => {
   const { closeDb, getDb } = await import("./db");
   const { getPublicState } = await import("./state");
-  const { markTile, resetProgress, unmarkTile } = await import("./mutations");
+  const { markTile, resetProgress, swapTiles, unmarkTile } = await import("./mutations");
   try {
     const state = getPublicState();
     assert.equal(state.teams.length, 4);
@@ -31,6 +31,21 @@ test("seeded sqlite board matches the scorer and survives mark, unmark, and rese
     assert.equal(state.activity[0].action, "complete");
 
     const db = getDb();
+    swapTiles(db, "tile-02", "tile-00");
+    const swapped = getPublicState();
+    assert.equal(swapped.tiles.find((tile) => tile.id === "tile-02")?.position, 0);
+    assert.equal(swapped.tiles.find((tile) => tile.id === "tile-00")?.position, 2);
+    assert.equal(new Set(swapped.tiles.map((tile) => tile.position)).size, 25);
+    const zulrahSwapped = swapped.leaderboard.find((row) => row.teamId === "team-zulrah");
+    assert.equal(zulrahSwapped?.tilePoints, 25);
+    assert.equal(zulrahSwapped?.columns, 0);
+    assert.equal(zulrahSwapped?.total, 25);
+    swapTiles(db, "tile-02", "tile-00");
+    const restoredBoard = getPublicState();
+    assert.equal(restoredBoard.tiles.find((tile) => tile.id === "tile-02")?.position, 2);
+    assert.equal(restoredBoard.leaderboard.find((row) => row.teamId === "team-zulrah")?.total, 30);
+    assert.throws(() => swapTiles(db, "tile-02", "missing"), /board/);
+
     unmarkTile(db, { teamId: "team-zulrah", tileId: "tile-07" });
     const afterUnmark = getPublicState();
     const zulrah = afterUnmark.leaderboard.find((row) => row.teamId === "team-zulrah");

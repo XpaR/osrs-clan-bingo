@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type FormEvent, type PointerEvent, type SetStateAction } from "react";
 import { BingoTile } from "@/components/bingo-tile";
 import { ProofUploader } from "@/components/proof-uploader";
 import { SiteFrame } from "@/components/site-frame";
@@ -557,88 +557,170 @@ function TeamsPanel({ state, send, busy }: { state: PublicState; send: Send; bus
 }
 
 function TilesPanel({ state, send, busy }: { state: PublicState; send: Send; busy: boolean }) {
-  const [drafts, setDrafts] = useSynced(
-    state.event.revision,
-    Object.fromEntries(state.tiles.map((tile) => [tile.id, tileDraft(tile)])),
-  );
   const tiles = [...state.tiles].sort((a, b) => a.position - b.position);
   const size = Math.max(1, Math.round(Math.sqrt(tiles.length)) || 5);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<TileDraft | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+  const drag = useRef<{ id: string; x: number; y: number; moved: boolean; overId: string | null } | null>(null);
+  const editing = tiles.find((tile) => tile.id === editingId) ?? null;
+
+  function openEditor(tile: PublicTile) {
+    setEditingId(tile.id);
+    setDraft(tileDraft(tile));
+  }
+
+  function tileUnder(x: number, y: number, sourceId: string) {
+    const stack = document.elementsFromPoint(x, y);
+    for (const element of stack) {
+      const id = element.closest("[data-tile-id]")?.getAttribute("data-tile-id");
+      if (id && id !== sourceId) return id;
+    }
+    return null;
+  }
+
+  function onPointerDown(tileId: string, event: PointerEvent<HTMLButtonElement>) {
+    if (event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    drag.current = { id: tileId, x: event.clientX, y: event.clientY, moved: false, overId: null };
+  }
+
+  function onPointerMove(event: PointerEvent<HTMLButtonElement>) {
+    const current = drag.current;
+    if (!current) return;
+    const distance = Math.hypot(event.clientX - current.x, event.clientY - current.y);
+    if (!current.moved && distance > 8) {
+      current.moved = true;
+      setDragId(current.id);
+    }
+    if (!current.moved) return;
+    const next = tileUnder(event.clientX, event.clientY, current.id);
+    current.overId = next;
+    setOverId(next);
+  }
+
+  function onPointerUp(event: PointerEvent<HTMLButtonElement>) {
+    const current = drag.current;
+    drag.current = null;
+    setDragId(null);
+    setOverId(null);
+    if (!current) return;
+    if (current.moved) {
+      const target = current.overId ?? tileUnder(event.clientX, event.clientY, current.id);
+      if (target) {
+        void send("/api/admin/tiles/swap", "POST", { tileId: current.id, withTileId: target }, "Tiles swapped.");
+      }
+      return;
+    }
+    const tile = tiles.find((item) => item.id === current.id);
+    if (tile) openEditor(tile);
+  }
 
   return (
-    <div className="space-y-2">
-      {tiles.map((tile) => {
-        const draft = drafts[tile.id] ?? tileDraft(tile);
-        return (
-          <details key={tile.id} className="parchment-panel p-3">
-            <summary className="cursor-pointer font-bold">
-              <span className="mr-2" aria-hidden="true">
-                {tile.icon.startsWith("http") ? "▣" : tile.icon}
-              </span>
-              {tile.name}
-              <span className="ml-2 text-sm font-semibold text-[#6d5638]">
-                {tile.isFree ? "FREE" : `${tile.points} pts`} · {cellLabel(tile.position, size)}
-              </span>
-            </summary>
+    <div className="space-y-3">
+      <p className="text-sm text-[#e7d7b4]">Tap a square to edit it. Drag one square onto another to swap their places.</p>
+      <div className="stone-frame min-w-0 p-1.5 sm:p-3">
+        <div
+          className="grid w-full min-w-0 touch-none gap-1 sm:gap-1.5"
+          style={{ gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` }}
+        >
+          {tiles.map((tile) => (
+            <BingoTile
+              key={tile.id}
+              data-tile-id={tile.id}
+              tile={tile}
+              marks={[]}
+              className={dragId === tile.id ? "opacity-50" : overId === tile.id ? "outline outline-2 outline-[#e6c15a]" : undefined}
+              aria-label={`Edit ${tile.name}`}
+              onPointerDown={(event) => onPointerDown(tile.id, event)}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={() => {
+                drag.current = null;
+                setDragId(null);
+                setOverId(null);
+              }}
+            />
+          ))}
+        </div>
+      </div>
+      <Dialog
+        open={Boolean(editing && draft)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingId(null);
+            setDraft(null);
+          }
+        }}
+      >
+        <DialogContent>
+          {editing && draft ? (
             <form
-              className="mt-3 space-y-3"
+              className="space-y-3"
               onSubmit={(event) => {
                 event.preventDefault();
-                void send(`/api/admin/tiles/${tile.id}`, "PUT", {
+                void send(`/api/admin/tiles/${editing.id}`, "PUT", {
                   ...draft,
                   points: Number(draft.points),
+                }).then((saved) => {
+                  if (saved) {
+                    setEditingId(null);
+                    setDraft(null);
+                  }
                 });
               }}
             >
+              <DialogHeader>
+                <DialogTitle>{editing.name}</DialogTitle>
+                <DialogDescription>{cellLabel(editing.position, size)}</DialogDescription>
+              </DialogHeader>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
-                  <Label htmlFor={`tile-name-${tile.id}`}>Name</Label>
+                  <Label htmlFor="tile-name">Name</Label>
                   <Input
-                    id={`tile-name-${tile.id}`}
+                    id="tile-name"
                     value={draft.name}
                     maxLength={40}
-                    onChange={(event) => updateTileDraft(setDrafts, tile.id, draft, { name: event.target.value })}
+                    onChange={(event) => setDraft({ ...draft, name: event.target.value })}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor={`tile-icon-${tile.id}`}>Icon or image URL</Label>
+                  <Label htmlFor="tile-icon">Icon or image URL</Label>
                   <Input
-                    id={`tile-icon-${tile.id}`}
+                    id="tile-icon"
                     value={draft.icon}
-                    onChange={(event) => updateTileDraft(setDrafts, tile.id, draft, { icon: event.target.value })}
+                    onChange={(event) => setDraft({ ...draft, icon: event.target.value })}
                   />
                 </div>
               </div>
               <div className="space-y-1">
-                <Label htmlFor={`tile-desc-${tile.id}`}>Description</Label>
+                <Label htmlFor="tile-desc">Description</Label>
                 <Textarea
-                  id={`tile-desc-${tile.id}`}
+                  id="tile-desc"
                   value={draft.description}
-                  onChange={(event) =>
-                    updateTileDraft(setDrafts, tile.id, draft, { description: event.target.value })
-                  }
+                  onChange={(event) => setDraft({ ...draft, description: event.target.value })}
                 />
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="space-y-1">
-                  <Label htmlFor={`tile-points-${tile.id}`}>Points</Label>
+                  <Label htmlFor="tile-points">Points</Label>
                   <Input
-                    id={`tile-points-${tile.id}`}
+                    id="tile-points"
                     inputMode="numeric"
                     value={draft.points}
                     disabled={draft.isFree}
-                    onChange={(event) => updateTileDraft(setDrafts, tile.id, draft, { points: event.target.value })}
+                    onChange={(event) => setDraft({ ...draft, points: event.target.value })}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor={`tile-diff-${tile.id}`}>Difficulty</Label>
+                  <Label htmlFor="tile-diff">Difficulty</Label>
                   <select
-                    id={`tile-diff-${tile.id}`}
+                    id="tile-diff"
                     className="select-osrs"
                     value={draft.isFree ? "free" : draft.difficulty}
                     disabled={draft.isFree}
-                    onChange={(event) =>
-                      updateTileDraft(setDrafts, tile.id, draft, { difficulty: event.target.value })
-                    }
+                    onChange={(event) => setDraft({ ...draft, difficulty: event.target.value })}
                   >
                     <option value="easy">Easy</option>
                     <option value="medium">Medium</option>
@@ -646,12 +728,12 @@ function TilesPanel({ state, send, busy }: { state: PublicState; send: Send; bus
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor={`tile-cat-${tile.id}`}>Category</Label>
+                  <Label htmlFor="tile-cat">Category</Label>
                   <Input
-                    id={`tile-cat-${tile.id}`}
+                    id="tile-cat"
                     value={draft.category}
                     maxLength={24}
-                    onChange={(event) => updateTileDraft(setDrafts, tile.id, draft, { category: event.target.value })}
+                    onChange={(event) => setDraft({ ...draft, category: event.target.value })}
                   />
                 </div>
               </div>
@@ -660,7 +742,8 @@ function TilesPanel({ state, send, busy }: { state: PublicState; send: Send; bus
                   type="checkbox"
                   checked={draft.isFree}
                   onChange={(event) =>
-                    updateTileDraft(setDrafts, tile.id, draft, {
+                    setDraft({
+                      ...draft,
                       isFree: event.target.checked,
                       points: event.target.checked ? "0" : draft.points,
                       difficulty: event.target.checked ? "free" : draft.difficulty === "free" ? "medium" : draft.difficulty,
@@ -669,13 +752,25 @@ function TilesPanel({ state, send, busy }: { state: PublicState; send: Send; bus
                 />
                 Free space, filled for every team
               </label>
-              <Button type="submit" disabled={busy}>
-                Save tile
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button type="submit" disabled={busy}>
+                  Save tile
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setEditingId(null);
+                    setDraft(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
             </form>
-          </details>
-        );
-      })}
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -872,13 +967,4 @@ function eventDraft(state: PublicState): EventDraft {
 function isoFromLocal(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toISOString();
-}
-
-function updateTileDraft(
-  setDrafts: Dispatch<SetStateAction<Record<string, TileDraft>>>,
-  id: string,
-  draft: TileDraft,
-  patch: Partial<TileDraft>,
-) {
-  setDrafts((current) => ({ ...current, [id]: { ...draft, ...patch } }));
 }

@@ -229,6 +229,23 @@ export function updateTile(
   unlinkProofFiles(files);
 }
 
+export function swapTiles(db: Database.Database, tileId: string, withTileId: string) {
+  if (tileId === withTileId) return;
+  const first = tileById(db, tileId);
+  const second = tileById(db, withTileId);
+  if (!first || !second) throw new Error("Both squares have to be on the board.");
+  const firstPosition = first.position;
+  const secondPosition = second.position;
+  const apply = db.transaction(() => {
+    db.prepare("UPDATE tiles SET position = -1 WHERE id = ?").run(first.id);
+    db.prepare("UPDATE tiles SET position = ? WHERE id = ?").run(firstPosition, second.id);
+    db.prepare("UPDATE tiles SET position = ? WHERE id = ?").run(secondPosition, first.id);
+    log(db, "tile", `Admin swapped ${first.name} with ${second.name}.`, first.id, null);
+    bump(db);
+  });
+  apply();
+}
+
 export function updateEvent(
   db: Database.Database,
   input: {
