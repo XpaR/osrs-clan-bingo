@@ -1,7 +1,6 @@
 import { getDb } from "./db";
 import { computeLeaderboard, type BonusConfig } from "./scoring";
 import type {
-  Difficulty,
   LeaderboardEntry,
   PublicActivity,
   PublicCompletion,
@@ -10,6 +9,7 @@ import type {
   PublicTeam,
   PublicTile,
   ProofImageRef,
+  TileCategory,
 } from "./types";
 
 interface EventRow {
@@ -41,7 +41,6 @@ interface TileRow {
   points: number;
   icon: string;
   category: string;
-  difficulty: string;
   is_free: number;
 }
 
@@ -65,9 +64,9 @@ interface ActivityRow {
   created_at: string;
 }
 
-function asDifficulty(value: string): Difficulty {
-  if (value === "easy" || value === "medium" || value === "hard" || value === "free") return value;
-  return "medium";
+function asCategory(value: string): TileCategory {
+  if (value === "Boss" || value === "Skill" || value === "Other") return value;
+  return "Other";
 }
 
 function membersOf(raw: string): string[] {
@@ -130,8 +129,7 @@ export function getPublicState(): PublicState {
     description: tile.description,
     points: tile.points,
     icon: tile.icon,
-    category: tile.category,
-    difficulty: asDifficulty(tile.difficulty),
+    category: asCategory(tile.category),
     isFree: tile.is_free === 1,
   }));
   const completions: PublicCompletion[] = completionRows.map((completion) => ({

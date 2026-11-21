@@ -1,4 +1,4 @@
-import type { Difficulty } from "./types";
+import type { TileCategory } from "./types";
 
 export function cleanName(value: unknown, label: string, max: number): string {
   const name = String(value ?? "").replace(/\s+/g, " ").trim();
@@ -52,12 +52,10 @@ export function cleanBonus(value: unknown, label: string): number {
   return amount;
 }
 
-export function cleanDifficulty(value: unknown): Difficulty {
-  const difficulty = String(value ?? "");
-  if (difficulty === "easy" || difficulty === "medium" || difficulty === "hard" || difficulty === "free") {
-    return difficulty;
-  }
-  throw new Error("Difficulty must be easy, medium, hard, or free.");
+export function cleanCategory(value: unknown): TileCategory {
+  const category = String(value ?? "").trim();
+  if (category === "Boss" || category === "Skill" || category === "Other") return category;
+  throw new Error("Category must be Boss, Skill, or Other.");
 }
 
 export function cleanIcon(value: unknown): string {

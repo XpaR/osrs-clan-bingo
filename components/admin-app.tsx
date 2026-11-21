@@ -27,7 +27,6 @@ interface TileDraft {
   points: string;
   icon: string;
   category: string;
-  difficulty: string;
   isFree: boolean;
 }
 
@@ -702,7 +701,7 @@ function TilesPanel({ state, send, busy }: { state: PublicState; send: Send; bus
                   onChange={(event) => setDraft({ ...draft, description: event.target.value })}
                 />
               </div>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label htmlFor="tile-points">Points</Label>
                   <Input
@@ -714,27 +713,17 @@ function TilesPanel({ state, send, busy }: { state: PublicState; send: Send; bus
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="tile-diff">Difficulty</Label>
-                  <select
-                    id="tile-diff"
-                    className="select-osrs"
-                    value={draft.isFree ? "free" : draft.difficulty}
-                    disabled={draft.isFree}
-                    onChange={(event) => setDraft({ ...draft, difficulty: event.target.value })}
-                  >
-                    <option value="easy">Easy</option>
-                    <option value="medium">Medium</option>
-                    <option value="hard">Hard</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
                   <Label htmlFor="tile-cat">Category</Label>
-                  <Input
+                  <select
                     id="tile-cat"
+                    className="select-osrs"
                     value={draft.category}
-                    maxLength={24}
                     onChange={(event) => setDraft({ ...draft, category: event.target.value })}
-                  />
+                  >
+                    <option value="Boss">Boss</option>
+                    <option value="Skill">Skill</option>
+                    <option value="Other">Other</option>
+                  </select>
                 </div>
               </div>
               <label className="flex min-h-11 items-center gap-2 text-sm font-bold">
@@ -746,7 +735,6 @@ function TilesPanel({ state, send, busy }: { state: PublicState; send: Send; bus
                       ...draft,
                       isFree: event.target.checked,
                       points: event.target.checked ? "0" : draft.points,
-                      difficulty: event.target.checked ? "free" : draft.difficulty === "free" ? "medium" : draft.difficulty,
                     })
                   }
                 />
@@ -945,7 +933,6 @@ function tileDraft(tile: PublicTile): TileDraft {
     points: String(tile.points),
     icon: tile.icon,
     category: tile.category,
-    difficulty: tile.difficulty,
     isFree: tile.isFree,
   };
 }

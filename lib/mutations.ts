@@ -5,8 +5,8 @@ import { completionMessage, removalMessage } from "./messages";
 import { proofFilesForCompletions, unlinkProofFiles } from "./proofs";
 import {
   cleanBonus,
+  cleanCategory,
   cleanColor,
-  cleanDifficulty,
   cleanIcon,
   cleanIso,
   cleanMembers,
@@ -32,7 +32,6 @@ interface TileRow {
   points: number;
   icon: string;
   category: string;
-  difficulty: string;
   is_free: number;
 }
 
@@ -191,7 +190,6 @@ export function updateTile(
     points?: unknown;
     icon?: unknown;
     category?: unknown;
-    difficulty?: unknown;
     isFree?: unknown;
   },
 ) {
@@ -202,11 +200,7 @@ export function updateTile(
   const description = cleanText(input.description, 800);
   const points = isFree ? 0 : cleanPoints(input.points);
   const icon = cleanIcon(input.icon);
-  const category = cleanText(input.category, 24) || "General";
-  const difficulty = isFree ? "free" : cleanDifficulty(input.difficulty);
-  if (!isFree && difficulty === "free") {
-    throw new Error("Turn on the free-space switch to make a tile free.");
-  }
+  const category = cleanCategory(input.category);
   const files = isFree
     ? proofFilesForCompletions(
         db,
@@ -216,9 +210,9 @@ export function updateTile(
   const apply = db.transaction(() => {
     db.prepare(
       `UPDATE tiles
-       SET name = ?, description = ?, points = ?, icon = ?, category = ?, difficulty = ?, is_free = ?
+       SET name = ?, description = ?, points = ?, icon = ?, category = ?, is_free = ?
        WHERE id = ?`,
-    ).run(name, description, points, icon, category, difficulty, isFree ? 1 : 0, id);
+    ).run(name, description, points, icon, category, isFree ? 1 : 0, id);
     if (isFree) {
       db.prepare("DELETE FROM completions WHERE tile_id = ?").run(id);
     }

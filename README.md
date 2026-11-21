@@ -38,7 +38,7 @@ The first launch creates the database and seeds the Serpent Cup: four teams, 25 
 
 ## Scoring
 
-Tile points are printed on each square. Easy tiles are 1–2, medium 3–5, hard 8–10. The centre FREE tile is filled for every team, scores 0, and still completes the middle of the centre row, the centre column, and both diagonals.
+Tile points are printed on each square. The centre FREE tile is filled for every team, scores 0, and still completes the middle of the centre row, the centre column, and both diagonals.
 
 On top of tile points:
 

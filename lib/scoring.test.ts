@@ -276,11 +276,17 @@ test("the seeded card is a 5 by 5 mix of the usual clan tiles", () => {
     assert.equal(names.includes(needle), true, needle);
   }
   for (const tile of SEED_TILES) {
-    if (tile.isFree) continue;
-    if (tile.difficulty === "easy") assert.ok(tile.points >= 1 && tile.points <= 2, tile.name);
-    if (tile.difficulty === "medium") assert.ok(tile.points >= 3 && tile.points <= 5, tile.name);
-    if (tile.difficulty === "hard") assert.ok(tile.points >= 8 && tile.points <= 10, tile.name);
+    assert.ok(tile.category === "Boss" || tile.category === "Skill" || tile.category === "Other", tile.name);
   }
+  const byId = Object.fromEntries(SEED_TILES.map((tile) => [tile.id, tile.category]));
+  assert.equal(byId["tile-00"], "Boss");
+  assert.equal(byId["tile-01"], "Boss");
+  assert.equal(byId["tile-02"], "Skill");
+  assert.equal(byId["tile-08"], "Skill");
+  assert.equal(byId["tile-12"], "Other");
+  assert.equal(byId["tile-03"], "Other");
+  assert.equal(byId["tile-14"], "Other");
+  assert.equal(byId["tile-20"], "Other");
   assert.equal(SEED_TEAMS.length, 4);
   assert.equal(new Set(SEED_TEAMS.map((team) => team.color)).size, 4);
 });

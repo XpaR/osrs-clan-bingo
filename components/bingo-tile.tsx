@@ -1,5 +1,4 @@
 import type { ButtonHTMLAttributes, CSSProperties } from "react";
-import { difficultyColor } from "@/lib/format";
 import type { PublicTile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +31,6 @@ export function BingoTile({
       data-done={bigMarkColor ? "true" : "false"}
       style={
         {
-          "--diff": difficultyColor(tile.difficulty),
           "--mark": bigMarkColor ?? "transparent",
         } as CSSProperties
       }

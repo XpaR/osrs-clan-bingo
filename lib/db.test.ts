@@ -10,12 +10,16 @@ process.env.DATABASE_PATH = path.join(dir, "bingo.sqlite");
 test("seeded sqlite board matches the scorer and survives mark, unmark, and reset", async () => {
   const { closeDb, getDb } = await import("./db");
   const { getPublicState } = await import("./state");
-  const { markTile, resetProgress, swapTiles, unmarkTile } = await import("./mutations");
+  const { markTile, resetProgress, swapTiles, unmarkTile, updateTile } = await import("./mutations");
   try {
     const state = getPublicState();
     assert.equal(state.teams.length, 4);
     assert.equal(state.tiles.length, 25);
     assert.equal(state.tiles.filter((tile) => tile.isFree).length, 1);
+    assert.equal(state.tiles.find((tile) => tile.id === "tile-00")?.category, "Boss");
+    assert.equal(state.tiles.find((tile) => tile.id === "tile-08")?.category, "Skill");
+    assert.equal(state.tiles.find((tile) => tile.id === "tile-12")?.category, "Other");
+    assert.equal(state.tiles.every((tile) => ["Boss", "Skill", "Other"].includes(tile.category)), true);
     assert.equal(state.event.name, "Serpent Cup Bingo");
     assert.equal(state.event.chatPassword, "serpentscale");
     assert.equal(state.event.bonuses.blackout, 25);
@@ -31,6 +35,31 @@ test("seeded sqlite board matches the scorer and survives mark, unmark, and rese
     assert.equal(state.activity[0].action, "complete");
 
     const db = getDb();
+    db.exec("ALTER TABLE tiles ADD COLUMN difficulty TEXT NOT NULL DEFAULT 'hard'");
+    db.pragma("user_version = 0");
+    getDb();
+    const columns = db.prepare("PRAGMA table_info(tiles)").all() as { name: string }[];
+    assert.equal(columns.some((column) => column.name === "difficulty"), false);
+    db.prepare("UPDATE tiles SET category = 'Clue' WHERE id = 'tile-03'").run();
+    db.pragma("user_version = 0");
+    getDb();
+    assert.equal(
+      (db.prepare("SELECT category FROM tiles WHERE id = 'tile-03'").get() as { category: string }).category,
+      "Other",
+    );
+    assert.throws(
+      () =>
+        updateTile(db, "tile-03", {
+          name: "Master clue",
+          description: "Open a master clue.",
+          points: 5,
+          icon: "📜",
+          category: "Clue",
+          isFree: false,
+        }),
+      /Category/,
+    );
+
     swapTiles(db, "tile-02", "tile-00");
     const swapped = getPublicState();
     assert.equal(swapped.tiles.find((tile) => tile.id === "tile-02")?.position, 0);

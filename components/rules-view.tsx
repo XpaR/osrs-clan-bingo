@@ -32,7 +32,7 @@ const RULES: { title: string; body: string }[] = [
   },
   {
     title: "Points",
-    body: "Easy tiles are 1 or 2 points, medium tiles are 3 to 5, and hard tiles are 8 to 10. The number on the square is the tile score. Read the square before you hunt it. The description is the ruling for that tile.",
+    body: "The number on the square is the tile score. Read the square before you hunt it. The description is the ruling for that tile.",
   },
   {
     title: "Lines and blackout",

@@ -66,8 +66,7 @@ function migrate(db: Database.Database) {
       description TEXT NOT NULL DEFAULT '',
       points INTEGER NOT NULL,
       icon TEXT NOT NULL DEFAULT '⭐',
-      category TEXT NOT NULL DEFAULT '',
-      difficulty TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'Other',
       is_free INTEGER NOT NULL DEFAULT 0
     );
 
@@ -105,6 +104,27 @@ function migrate(db: Database.Database) {
 
     CREATE INDEX IF NOT EXISTS proof_images_completion ON proof_images (completion_id);
   `);
+  normalizeTiles(db);
+}
+
+const TILE_SCHEMA_VERSION = 2;
+
+function normalizeTiles(db: Database.Database) {
+  const version = Number(db.pragma("user_version", { simple: true }));
+  if (version >= TILE_SCHEMA_VERSION) return;
+  const columns = db.prepare("PRAGMA table_info(tiles)").all() as { name: string }[];
+  if (columns.some((column) => column.name === "difficulty")) {
+    db.exec("ALTER TABLE tiles DROP COLUMN difficulty");
+  }
+  const setCategory = db.prepare("UPDATE tiles SET category = ? WHERE id = ?");
+  const apply = db.transaction(() => {
+    for (const tile of SEED_TILES) {
+      setCategory.run(tile.category, tile.id);
+    }
+    db.prepare("UPDATE tiles SET category = 'Other' WHERE category NOT IN ('Boss', 'Skill', 'Other')").run();
+  });
+  apply();
+  db.pragma(`user_version = ${TILE_SCHEMA_VERSION}`);
 }
 
 function writeSeed(db: Database.Database, now: Date) {
@@ -135,8 +155,8 @@ function writeSeed(db: Database.Database, now: Date) {
 
   const insertTile = db.prepare(
     `INSERT INTO tiles (
-      id, position, name, description, points, icon, category, difficulty, is_free
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, position, name, description, points, icon, category, is_free
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   for (const tile of SEED_TILES) {
     insertTile.run(
@@ -147,7 +167,6 @@ function writeSeed(db: Database.Database, now: Date) {
       tile.points,
       tile.icon,
       tile.category,
-      tile.difficulty,
       tile.isFree ? 1 : 0,
     );
   }

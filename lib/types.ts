@@ -1,6 +1,6 @@
 import type { TeamScore } from "./scoring";
 
-export type Difficulty = "easy" | "medium" | "hard" | "free";
+export type TileCategory = "Boss" | "Skill" | "Other";
 
 export interface PublicEvent {
   name: string;
@@ -32,8 +32,7 @@ export interface PublicTile {
   description: string;
   points: number;
   icon: string;
-  category: string;
-  difficulty: Difficulty;
+  category: TileCategory;
   isFree: boolean;
 }
 

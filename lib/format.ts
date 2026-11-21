@@ -38,13 +38,6 @@ export function formatRemaining(targetIso: string, nowIso: string): string {
   return parts.join(" ");
 }
 
-export function difficultyColor(difficulty: string): string {
-  if (difficulty === "easy") return "#2f7d46";
-  if (difficulty === "hard") return "#9d2a2a";
-  if (difficulty === "free") return "#c9a227";
-  return "#b57a1a";
-}
-
 export function inkFor(hex: string): string {
   const raw = hex.replace("#", "");
   if (!/^[0-9a-fA-F]{6}$/.test(raw)) return "#fffaf0";

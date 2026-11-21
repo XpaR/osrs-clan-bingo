@@ -92,13 +92,6 @@ export function PublicBoard({ initial }: { initial: PublicState }) {
         <section className="stone-frame order-2 min-w-0 p-1.5 sm:p-3 lg:order-1" aria-label="Bingo board">
           <div className="mb-2 flex flex-wrap items-end justify-between gap-2 px-1">
             <h2 className="font-display text-xl text-[#f3d78a]">The board</h2>
-            <p className="text-xs text-[#e7d7b4]">
-              <span className="text-[#8dcea4]">Easy 1-2</span>
-              {" · "}
-              <span className="text-[#f0c36a]">Medium 3-5</span>
-              {" · "}
-              <span className="text-[#f0a0a0]">Hard 8-10</span>
-            </p>
           </div>
           {selected ? (
             <p className="mb-2 rounded-sm bg-black/25 px-2 py-2 text-sm text-[#f6e7c2]">
@@ -243,7 +236,6 @@ function TileDetail({ state, tile }: { state: PublicState; tile: PublicTile }) {
       <DialogHeader>
         <div className="mb-1 flex flex-wrap gap-1">
           <Badge>{tile.category}</Badge>
-          <Badge>{tile.difficulty}</Badge>
           <Badge>{tile.isFree ? "0 pts" : `${tile.points} pts`}</Badge>
         </div>
         <DialogTitle>
