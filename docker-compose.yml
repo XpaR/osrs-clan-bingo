@@ -1,0 +1,16 @@
+services:
+  bingo:
+    build: .
+    ports:
+      - "4317:4317"
+    environment:
+      PORT: "4317"
+      ADMIN_PASSWORD: "change-this-password"
+      ADMIN_SESSION_SECRET: "change-this-secret"
+      DATABASE_PATH: "/data/bingo.sqlite"
+    volumes:
+      - bingo-data:/data
+    restart: unless-stopped
+
+volumes:
+  bingo-data:
